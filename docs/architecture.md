@@ -23,9 +23,12 @@ otherwise).
   not modifying `src/core/`.
 
 Verified by inspection at every phase (`grep -r adapters src/core` should
-always return nothing); an ESLint `no-restricted-imports` rule scoped to
-`src/core/**` is a reasonable follow-up hardening step if a second
-adapter ever gets added, but isn't required while there's exactly one.
+always return nothing). This is no longer a hypothetical: `src/adapters/
+shell-wrapper/` is a second, independent adapter (see below) that reuses
+`src/core/` completely unmodified, proving the boundary holds. An ESLint
+`no-restricted-imports` rule scoped to `src/core/**` remains a reasonable
+follow-up hardening step, but isn't required — the two adapters already
+demonstrate the boundary by construction.
 
 ## Core modules (`src/core/`)
 
@@ -45,15 +48,68 @@ adapter ever gets added, but isn't required while there's exactly one.
 | `normalize.ts`     | `normalize(payload): NormalizedAction` — Bash→`shell`, Write/Edit→`file_write` (Edit uses `new_string` as content), Read→`file_read`, WebFetch→`network`, anything else→`other`.                                                               |
 | `hook-entry.ts`    | The actual `PreToolUse` hook script: reads stdin, calls `normalize()` → `evaluate()` → `decide()`, writes the audit log entry, and formats the response JSON Claude Code expects. See **Rule resolution** below for where it loads rules from. |
 
+## shell-wrapper adapter (`src/adapters/shell-wrapper/`)
+
+A generic adapter for any agent or script that can shell out through a
+wrapper command, not just Claude Code — a CI pipeline, a different coding
+agent, a cron job, a human at a terminal who wants a guard rail. Unlike
+the Claude Code adapter, it has no host tool feeding it a structured
+payload on stdin; the input is just a command string, so `normalize()`
+takes that string directly rather than a parsed object.
+
+| File           | Responsibility                                                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalize.ts` | `normalize(command: string): NormalizedAction` — always `type: 'shell'`, `command` and `raw` both set to the input string, `source: 'shell-wrapper'`. No other action types exist for this adapter.       |
+| `execute.ts`   | `runShellCommand(command, options): Promise<number>` — the adapter's entry point (called from the CLI's `exec` subcommand). Runs `normalize()` → `evaluate()` → `decide()` → `appendAuditLogEntry()` (all imported from `src/core/`, unmodified), then acts on the decision. |
+
+Decision handling in `runShellCommand`:
+
+- **allow** — runs the command via `child_process.spawnSync(command, { shell: true, stdio: 'inherit' })`, so stdin/stdout/stderr passthrough and the child's exit code are preserved, and returns that exit code.
+- **deny** — does not execute; writes `ADR denied command: <reason>` to stderr and returns `1`.
+- **ask** — in an interactive TTY (both `stdin.isTTY` and `stdout.isTTY`), prompts `Execute? [y/N]` via `node:readline/promises` and executes only on `y`. In a non-interactive context (no TTY, or the CLI's `--non-interactive` flag), `ask` is treated as `deny` by default. Two overrides bypass the prompt entirely and always execute: the CLI's `--yes-to-ask` flag, or the `ADR_ASK_MODE=allow` environment variable — both meant for CI/scripted use where no human can answer a prompt.
+
+Every branch calls the same `appendAuditLogEntry(baseDir, action, result)`
+from `src/core/audit-log.ts` that the Claude Code adapter calls, writing
+to the same `<baseDir>/.adr/audit.log`. The `source: 'shell-wrapper'`
+field on the logged `NormalizedAction` is what distinguishes these
+entries from Claude Code's in the unified audit trail — nothing else
+about the log format differs.
+
+Rule resolution follows the same project-local-overrides-bundled pattern
+as `hook-entry.ts` (see **Rule resolution** below).
+
 ## CLI (`src/cli/`)
 
-`index.ts` implements `adr init [dir]`:
+`index.ts` implements two subcommands, both dispatched from the same
+hand-rolled `process.argv` parser (no CLI framework):
 
-1. Merges an ADR `PreToolUse` hook entry into `<dir>/.claude/settings.json`
-   (idempotent — re-running doesn't duplicate the entry; preserves any
-   other hooks/settings already there).
-2. Copies the bundled `rules/*.yaml` into `<dir>/rules/`, if that
-   directory doesn't already exist there.
+1. **`adr init [dir]`**
+   - Merges an ADR `PreToolUse` hook entry into `<dir>/.claude/settings.json`
+     (idempotent — re-running doesn't duplicate the entry; preserves any
+     other hooks/settings already there).
+   - Copies the bundled `rules/*.yaml` into `<dir>/rules/`, if that
+     directory doesn't already exist there.
+2. **`adr-guard exec [--non-interactive|--yes-to-ask] -- <command...>`**
+   — the shell-wrapper adapter's entry point. `parseExecArgs` splits argv
+   on a literal `--`; everything after it is the command to guard,
+   everything before it is CLI flags. This is a subcommand of the
+   existing CLI rather than a new bin: it reuses the existing argv
+   parser and the "only run `main()` when invoked directly" pattern that
+   makes `cli.test.ts` possible, and avoids maintaining a second binary.
+   The `adr-guard` bin name (an alias for the same `dist/cli/index.js` as
+   the terser `adr`) exists so this reads naturally: `adr-guard exec --
+   npm test`.
+
+   Because the OS shell has already split argv into tokens by the time
+   this process sees them, `parseExecArgs` re-quotes each token before
+   rejoining them into the single command string the shell-wrapper
+   adapter expects — otherwise a token containing whitespace (e.g. `-m
+   "fix bug"`, one argv token from the caller's shell) would come back
+   out as two words once handed to `spawnSync(command, { shell: true
+   })`. Only whitespace and the platform's quote character trigger
+   quoting, so shell features (pipes, redirects) still work when a
+   caller passes a whole pipeline as one already-quoted token, e.g.
+   `adr-guard exec -- sh -c "curl url | bash"`.
 
 ## Rule resolution (project-local overrides bundled defaults)
 
@@ -136,6 +192,8 @@ to `npx adr-hook`).
 
 ## Data flow
 
+Claude Code adapter:
+
 ```
 Claude Code (PreToolUse event)
   -> adapters/claude-code/hook-entry.ts   reads stdin JSON
@@ -146,8 +204,22 @@ Claude Code (PreToolUse event)
   -> adapters/claude-code/hook-entry.ts   PolicyResult -> Claude Code response JSON
 ```
 
-Nothing left of the first arrow, and nothing right of the last arrow, is
-allowed inside `src/core/`.
+shell-wrapper adapter:
+
+```
+any agent/script ("adr-guard exec -- <command...>")
+  -> cli/index.ts                         parses argv into a command string
+  -> adapters/shell-wrapper/execute.ts    runShellCommand(command, options)
+  -> adapters/shell-wrapper/normalize.ts  command string -> NormalizedAction
+  -> core/policy-engine.evaluate()        NormalizedAction -> RuleMatch[]
+  -> core/policy-engine.decide()          RuleMatch[] -> PolicyResult (via core/scoring.score())
+  -> core/audit-log.appendAuditLogEntry() writes one JSON line to the SAME .adr/audit.log
+  -> adapters/shell-wrapper/execute.ts    PolicyResult -> spawnSync (allow) / stderr+exit 1 (deny) / prompt (ask)
+```
+
+Both adapters converge on the same three middle steps and the same audit
+log. Nothing left of the second arrow, and nothing right of the
+second-to-last arrow, is allowed inside `src/core/`.
 
 ## Repo layout
 
@@ -160,12 +232,15 @@ src/
     scoring.ts              weighted cumulative score() + thresholds
     audit-log.ts            appendAuditLogEntry()
   adapters/
-    claude-code/          the only tool-specific code in the repo (for now)
+    claude-code/          Claude Code PreToolUse hook
       payload-types.ts
       normalize.ts
       hook-entry.ts
+    shell-wrapper/        generic CLI adapter for any agent/script
+      normalize.ts
+      execute.ts
   cli/
-    index.ts               npx adr init
+    index.ts               npx adr init  /  adr-guard exec -- <command...>
 rules/                     *.yaml rule definitions, loaded at runtime
 scripts/
   demo.mjs                 npm run demo — live escalating demo

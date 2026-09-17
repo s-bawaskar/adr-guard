@@ -5,6 +5,7 @@
   "type": "module",
   "bin": {
     "adr": "dist/cli/index.js",
+    "adr-guard": "dist/cli/index.js",
     "adr-hook": "dist/adapters/claude-code/hook-entry.js"
   },
   "files": [

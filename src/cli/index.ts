@@ -15,6 +15,7 @@ import {
 } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runShellCommand } from '../adapters/shell-wrapper/execute.js';
 
 // dist/cli/index.js -> package root
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -150,21 +151,35 @@ export function resolveTargetDir(cwd: string, dirArg: string | undefined): strin
   return dirArg ? resolve(cwd, dirArg) : cwd;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
-  const targetDir = resolveTargetDir(process.cwd(), rest[0]);
 
   if (command === 'init') {
+    const targetDir = resolveTargetDir(process.cwd(), rest[0]);
     init(targetDir);
     return;
   }
 
-  console.error(`Unknown command: ${command ?? '(none)'}\n\nUsage: adr init [dir]`);
+  if (command === 'exec') {
+    try {
+      const options = parseExecArgs(rest);
+      process.exitCode = await runShellCommand(options.command, options);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  console.error(
+    `Unknown command: ${command ?? '(none)'}\n\nUsage: adr init [dir]\n` +
+      '       adr-guard exec [--non-interactive|--yes-to-ask] -- <command...>',
+  );
   process.exitCode = 1;
 }
 
 // Only run when executed directly (e.g. `node dist/cli/index.js` or via the
 // `adr` bin), not when imported by tests.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main();
+  void main();
 }

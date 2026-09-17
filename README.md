@@ -39,9 +39,10 @@ The core (`src/core/`) never imports or knows about a specific coding
 tool's payload format — it only ever sees a tool-agnostic
 `NormalizedAction`. All Claude-Code-specific code lives in one place,
 `src/adapters/claude-code/`. That's not an abstraction for its own sake:
-it means adding a second tool (Cursor, an OS-level hook, whatever comes
-next) is a new adapter folder, not a rewrite of the policy engine, the
-rule format, the scoring, or the audit log. See
+it means adding a second tool is a new adapter folder, not a rewrite of
+the policy engine, the rule format, the scoring, or the audit log — proven
+by `src/adapters/shell-wrapper/`, a second, generic adapter usable by any
+agent or script that can shell out through a wrapper command. See
 [docs/architecture.md](docs/architecture.md) for the full breakdown.
 
 Rules are data, not code: every `.yaml` file in `rules/` is loaded and
@@ -50,13 +51,18 @@ requires touching TypeScript. See [rules/README.md](rules/README.md).
 
 ## Install
 
-Ships with a **Claude Code** adapter today. The detection engine itself
-(policy engine, rule library, scoring, and audit log) is tool-agnostic — see
-[docs/architecture.md](docs/architecture.md) for the core/adapter split — so
-support for other agent tools is a new adapter, not a rewrite.
+The detection engine itself (policy engine, rule library, scoring, and
+audit log) is tool-agnostic — see [docs/architecture.md](docs/architecture.md)
+for the core/adapter split. ADR ships with two adapters today: a Claude
+Code hook, and a generic shell-wrapper CLI usable by any agent or script.
 
 ```
 npm install --save-dev adr-guard
+```
+
+### Claude Code
+
+```
 npx adr init
 ```
 
@@ -71,6 +77,34 @@ npx adr init
 > Installing as a dev dependency (rather than relying on `npx` to fetch
 > it fresh) means the hook runs from your local `node_modules` on every
 > tool call instead of doing a network lookup each time.
+
+### Any other agent or script (shell-wrapper)
+
+No setup step is required — just prefix the command you want guarded
+with `adr-guard exec --`:
+
+```
+npx adr-guard exec -- npm run some-script
+```
+
+This runs the command through the same policy engine and rule set as the
+Claude Code hook, writing to the same `.adr/audit.log`. `allow` executes
+the command with stdin/stdout/stderr passthrough and its real exit code;
+`deny` prints the reason to stderr and exits `1` without running it;
+`ask` prompts `Execute? [y/N]` when stdin/stdout are a real TTY.
+
+In CI or any other non-interactive context, `ask` is treated as `deny` by
+default — pass `--yes-to-ask`, or set `ADR_ASK_MODE=allow`, to let
+`ask`-level commands through without a human to prompt:
+
+```
+adr-guard exec --yes-to-ask -- ./scripts/deploy.sh
+# or
+ADR_ASK_MODE=allow adr-guard exec -- ./scripts/deploy.sh
+```
+
+Use `--non-interactive` to force the non-interactive (deny-on-ask)
+behavior even when stdin/stdout happen to be a TTY.
 
 ## Quickstart
 
@@ -125,8 +159,9 @@ Repo layout:
 src/
   core/            tool-agnostic: normalizer types, policy engine, scoring, audit log
   adapters/
-    claude-code/   the only tool-specific code in the repo (for now)
-  cli/             npx adr init
+    claude-code/   Claude Code PreToolUse hook
+    shell-wrapper/ generic CLI adapter for any agent/script (adr-guard exec)
+  cli/             npx adr init  /  adr-guard exec -- <command...>
 rules/             *.yaml rule definitions, loaded at runtime
 test/
 docs/
