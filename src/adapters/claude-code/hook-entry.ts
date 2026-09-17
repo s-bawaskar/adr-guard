@@ -61,12 +61,13 @@ function isPreToolUsePayload(payload: unknown): payload is ClaudeCodePreToolUseP
   );
 }
 
-function reasonFrom(matches: RuleMatch[]): string {
+function reasonFrom(matches: RuleMatch[], riskScore: number): string {
   const triggered = matches.filter((m) => m.matched);
   if (triggered.length === 0) {
-    return 'No policy rules matched';
+    return 'No policy rules matched (risk score: 0)';
   }
-  return triggered.map((m) => `[${m.severity}] ${m.ruleId}: ${m.reason}`).join('; ');
+  const details = triggered.map((m) => `[${m.severity}] ${m.ruleId}: ${m.reason}`).join('; ');
+  return `${details} (risk score: ${riskScore})`;
 }
 
 function respond(decision: Decision, reason: string): void {
@@ -92,11 +93,11 @@ function main(): void {
 
   const action = normalize(payload);
   const matches = evaluate(action, RULES);
-  const result = decide(matches);
+  const result = decide(action, matches);
 
   appendAuditLogEntry(resolveBaseDir(payload), action, result);
 
-  respond(result.decision, reasonFrom(matches));
+  respond(result.decision, reasonFrom(matches, result.score));
 }
 
 main();

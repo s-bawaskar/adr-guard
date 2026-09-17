@@ -7,6 +7,7 @@ export interface AuditLogEntry {
   source: string;
   action: NormalizedAction;
   decision: Decision;
+  score: number;
   severity?: Severity;
   matches: RuleMatch[];
 }
@@ -27,6 +28,7 @@ export function appendAuditLogEntry(
     source: action.source,
     action,
     decision: result.decision,
+    score: result.score,
     severity: result.severity,
     matches: result.matches,
   };

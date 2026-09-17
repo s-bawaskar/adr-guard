@@ -25,6 +25,7 @@ describe('audit-log (core)', () => {
 
   const denyResult: PolicyResult = {
     decision: 'deny',
+    score: 10,
     severity: 'critical',
     matches: [
       {
@@ -50,6 +51,7 @@ describe('audit-log (core)', () => {
     expect(typeof entry.timestamp).toBe('string');
     expect(entry.source).toBe('claude-code');
     expect(entry.decision).toBe('deny');
+    expect(entry.score).toBe(10);
     expect(entry.severity).toBe('critical');
     expect(entry.matches).toEqual(denyResult.matches);
     expect(entry.action).toEqual(dangerousAction);
@@ -73,7 +75,7 @@ describe('audit-log (core)', () => {
       raw: {},
       source: 'claude-code',
     };
-    const allowResult: PolicyResult = { decision: 'allow', matches: [] };
+    const allowResult: PolicyResult = { decision: 'allow', score: 0, matches: [] };
 
     appendAuditLogEntry(baseDir, benignAction, allowResult);
 
@@ -92,6 +94,7 @@ describe('audit-log (core)', () => {
     };
     const askResult: PolicyResult = {
       decision: 'ask',
+      score: 3,
       severity: 'medium',
       matches: [
         {

@@ -30,6 +30,8 @@ export type Decision = 'allow' | 'ask' | 'deny';
 
 export interface PolicyResult {
   decision: Decision;
+  /** Cumulative weighted risk score across all triggered matches (see scoring.ts). Drives `decision`. */
+  score: number;
   /** Highest severity among triggered matches; absent when nothing matched. */
   severity?: Severity;
   matches: RuleMatch[];
