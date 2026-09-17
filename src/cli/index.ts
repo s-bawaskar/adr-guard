@@ -104,7 +104,7 @@ function init(targetDir: string): void {
   console.log(`Audit trail will be written to ${join(targetDir, '.adr', 'audit.log')}.`);
   console.log(
     '\nFor the hook to run fast (no network lookup on every tool call), install ADR ' +
-      'as a dev dependency: npm install --save-dev adr',
+      'as a dev dependency: npm install --save-dev adr-guard',
   );
 }
 

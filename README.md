@@ -53,7 +53,7 @@ requires touching TypeScript. See [rules/README.md](rules/README.md).
 Currently set up for **Claude Code** only.
 
 ```
-npm install --save-dev adr
+npm install --save-dev adr-guard
 npx adr init
 ```
 
@@ -132,10 +132,9 @@ knowledge into core will be asked to fix that before merge.
 ## Status
 
 Early — built as a proof of concept, most heavily exercised against
-Claude Code on Windows/macOS/Linux shells. Package name `adr` on npm is
-already taken by an unrelated project, so this hasn't been published
-yet; treat `npm install --save-dev adr` above as the intended workflow
-once it ships under its real name.
+Claude Code on Windows/macOS/Linux shells. Published to npm as
+`adr-guard` (the short name `adr` was already taken by an unrelated
+package, and `adr-cli` by another one).
 
 ## License
 
