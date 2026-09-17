@@ -21,10 +21,10 @@ this is the same code path the Claude Code adapter runs in production.
 
 ## Result
 
-| Corpus | Size | Failures | Rate |
-|---|---|---|---|
-| Legit (false positives) | 26 | 0 | **0%** |
-| Malicious (false negatives) | 9 | 0 | **0%** |
+| Corpus                      | Size | Failures | Rate   |
+| --------------------------- | ---- | -------- | ------ |
+| Legit (false positives)     | 26   | 0        | **0%** |
+| Malicious (false negatives) | 9    | 0        | **0%** |
 
 ## Tuning that got us here
 

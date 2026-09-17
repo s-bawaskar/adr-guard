@@ -79,11 +79,11 @@ Tool-specific `tool_input` shapes we care about for the MVP:
 
 ### Exit codes
 
-| Code | Behavior |
-|------|----------|
-| `0`  | stdout JSON parsed for decision fields. No output = no decision, normal permission flow applies. |
-| `2`  | Blocking error — tool call is blocked regardless of JSON; message comes from `permissionDecisionReason` or stderr. |
-| other | Non-blocking error; tool proceeds, stdout treated as plain text. |
+| Code  | Behavior                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------------------------------------ |
+| `0`   | stdout JSON parsed for decision fields. No output = no decision, normal permission flow applies.                   |
+| `2`   | Blocking error — tool call is blocked regardless of JSON; message comes from `permissionDecisionReason` or stderr. |
+| other | Non-blocking error; tool proceeds, stdout treated as plain text.                                                   |
 
 ### Registration
 

@@ -77,6 +77,11 @@ see it flagged (`ask`) rather than silently executed. Every decision,
 matched or not, is written to `.adr/audit.log` as one JSON line per tool
 call.
 
+Want to see it work without setting up a project? `npm run demo` runs
+4 escalating tool calls (benign → suspicious → malicious → a compound
+case) straight through the real hook in a disposable temp directory —
+see [docs/demo-script.md](docs/demo-script.md) for a narrated walkthrough.
+
 ## Default rules
 
 | Rule                         | Severity | Triggers on                                                           |
