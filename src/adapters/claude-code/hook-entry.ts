@@ -9,7 +9,7 @@
  * in the repo that speaks Claude Code's raw hook JSON — everything past
  * normalize() only sees NormalizedAction / PolicyResult.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendAuditLogEntry } from '../../core/audit-log.js';
@@ -21,7 +21,13 @@ import type { ClaudeCodePreToolUsePayload } from './payload-types.js';
 
 // dist/adapters/claude-code/hook-entry.js -> package root -> rules/
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const RULES = loadCompiledRules(join(PACKAGE_ROOT, 'rules'));
+const DEFAULT_RULES_DIR = join(PACKAGE_ROOT, 'rules');
+
+/** Prefers a project-local `<baseDir>/rules` (dropped there by `adr init`) over the package's bundled defaults, so editing a project's copy actually changes behavior. */
+function resolveRulesDir(baseDir: string): string {
+  const projectRulesDir = join(baseDir, 'rules');
+  return existsSync(projectRulesDir) ? projectRulesDir : DEFAULT_RULES_DIR;
+}
 
 function readStdin(): string {
   try {
@@ -91,11 +97,14 @@ function main(): void {
     return;
   }
 
+  const baseDir = resolveBaseDir(payload);
+  const rules = loadCompiledRules(resolveRulesDir(baseDir));
+
   const action = normalize(payload);
-  const matches = evaluate(action, RULES);
+  const matches = evaluate(action, rules);
   const result = decide(action, matches);
 
-  appendAuditLogEntry(resolveBaseDir(payload), action, result);
+  appendAuditLogEntry(baseDir, action, result);
 
   respond(result.decision, reasonFrom(matches, result.score));
 }

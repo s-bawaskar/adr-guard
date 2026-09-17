@@ -10,14 +10,14 @@ Cursor, an OS-level hook, etc. later).
 ## Schema
 
 ```yaml
-id: dangerous-rm            # required, unique, kebab-case
-appliesTo: shell             # required: shell | file_write | file_read | network | other | any
-field: command                # optional: which action field(s) to test — string or list
-match:                         # required
-  kind: regex                  # regex | path_prefix | domain_allowlist | domain_denylist
-  pattern: 'rm\s+-rf\s+/'       # kind-specific fields, see below
-severity: critical             # required: low | medium | high | critical
-message: 'Recursive force-delete on a broad path'   # required, shown to the agent/user
+id: dangerous-rm # required, unique, kebab-case
+appliesTo: shell # required: shell | file_write | file_read | network | other | any
+field: command # optional: which action field(s) to test — string or list
+match: # required
+  kind: regex # regex | path_prefix | domain_allowlist | domain_denylist
+  pattern: 'rm\s+-rf\s+/' # kind-specific fields, see below
+severity: critical # required: low | medium | high | critical
+message: 'Recursive force-delete on a broad path' # required, shown to the agent/user
 ```
 
 ### `appliesTo`
@@ -40,12 +40,12 @@ default to `url` — `regex` has no default and needs an explicit field.
 Drives the overall decision when multiple rules fire on the same
 action — the single highest-severity triggered rule wins:
 
-| severity | decision |
-|----------|----------|
-| `low`      | allow |
-| `medium`   | ask |
-| `high`     | ask |
-| `critical` | deny |
+| severity   | decision |
+| ---------- | -------- |
+| `low`      | allow    |
+| `medium`   | ask      |
+| `high`     | ask      |
+| `critical` | deny     |
 
 ## Match kinds
 
@@ -55,7 +55,7 @@ action — the single highest-severity triggered rule wins:
 match:
   kind: regex
   pattern: '\bcurl\b.*\|\s*bash\b'
-  flags: 'i'   # optional, defaults to 'i' (case-insensitive)
+  flags: 'i' # optional, defaults to 'i' (case-insensitive)
 ```
 
 `pattern` is passed straight to `new RegExp(pattern, flags)`. Matches if
