@@ -30,5 +30,7 @@ export type Decision = 'allow' | 'ask' | 'deny';
 
 export interface PolicyResult {
   decision: Decision;
+  /** Highest severity among triggered matches; absent when nothing matched. */
+  severity?: Severity;
   matches: RuleMatch[];
 }

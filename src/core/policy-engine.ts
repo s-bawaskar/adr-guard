@@ -105,5 +105,5 @@ export function decide(matches: RuleMatch[]): PolicyResult {
     SEVERITY_RANK[m.severity] > SEVERITY_RANK[acc.severity] ? m : acc,
   );
 
-  return { decision: SEVERITY_TO_DECISION[worst.severity], matches };
+  return { decision: SEVERITY_TO_DECISION[worst.severity], severity: worst.severity, matches };
 }

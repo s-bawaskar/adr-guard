@@ -2,14 +2,15 @@
 /**
  * PreToolUse hook entry point for Claude Code.
  *
- * Reads the hook payload from stdin, logs it, normalizes it, runs it
- * through the core policy engine, and translates the resulting decision
- * back into Claude Code's expected JSON response shape. This file (plus
- * normalize.ts) is the only place in the repo that speaks Claude Code's
- * raw hook JSON — everything past normalize() only sees NormalizedAction.
+ * Reads the hook payload from stdin, normalizes it, runs it through the
+ * core policy engine, writes a structured audit log entry, and
+ * translates the resulting decision back into Claude Code's expected
+ * JSON response shape. This file (plus normalize.ts) is the only place
+ * in the repo that speaks Claude Code's raw hook JSON — everything past
+ * normalize() only sees NormalizedAction / PolicyResult.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { appendAuditLogEntry } from '../../core/audit-log.js';
 import { decide, evaluate } from '../../core/policy-engine.js';
 import type { Decision, RuleMatch } from '../../core/types.js';
 import { normalize } from './normalize.js';
@@ -31,17 +32,16 @@ function safeParseJson(raw: string): unknown {
   }
 }
 
-function resolveLogDir(payload: unknown): string {
+function resolveBaseDir(payload: unknown): string {
   if (
-    payload !== undefined &&
     payload !== null &&
     typeof payload === 'object' &&
     'cwd' in payload &&
     typeof (payload as { cwd: unknown }).cwd === 'string'
   ) {
-    return join((payload as { cwd: string }).cwd, '.adr');
+    return (payload as { cwd: string }).cwd;
   }
-  return join(process.cwd(), '.adr');
+  return process.cwd();
 }
 
 function isPreToolUsePayload(payload: unknown): payload is ClaudeCodePreToolUsePayload {
@@ -78,18 +78,6 @@ function main(): void {
   const raw = readStdin();
   const payload = safeParseJson(raw);
 
-  const logDir = resolveLogDir(payload);
-  if (!existsSync(logDir)) {
-    mkdirSync(logDir, { recursive: true });
-  }
-
-  const logLine = JSON.stringify({
-    receivedAt: new Date().toISOString(),
-    rawParsed: payload ?? null,
-    rawText: payload === undefined ? raw : undefined,
-  });
-  appendFileSync(join(logDir, 'raw-payloads.log'), logLine + '\n');
-
   if (!isPreToolUsePayload(payload)) {
     respond('allow', 'ADR: unparsable or unrecognized payload shape, defaulting to allow');
     return;
@@ -97,9 +85,11 @@ function main(): void {
 
   const action = normalize(payload);
   const matches = evaluate(action);
-  const { decision } = decide(matches);
+  const result = decide(matches);
 
-  respond(decision, reasonFrom(matches));
+  appendAuditLogEntry(resolveBaseDir(payload), action, result);
+
+  respond(result.decision, reasonFrom(matches));
 }
 
 main();
