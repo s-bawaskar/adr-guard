@@ -4,8 +4,8 @@
   "description": "Agent Detection & Response — tool-agnostic detection engine that intercepts coding-agent tool calls before execution",
   "type": "module",
   "bin": {
-    "adr": "./dist/cli/index.js",
-    "adr-hook": "./dist/adapters/claude-code/hook-entry.js"
+    "adr": "dist/cli/index.js",
+    "adr-hook": "dist/adapters/claude-code/hook-entry.js"
   },
   "files": [
     "dist",

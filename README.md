@@ -50,7 +50,10 @@ requires touching TypeScript. See [rules/README.md](rules/README.md).
 
 ## Install
 
-Currently set up for **Claude Code** only.
+Ships with a **Claude Code** adapter today. The detection engine itself
+(policy engine, rule library, scoring, and audit log) is tool-agnostic — see
+[docs/architecture.md](docs/architecture.md) for the core/adapter split — so
+support for other agent tools is a new adapter, not a rewrite.
 
 ```
 npm install --save-dev adr-guard
