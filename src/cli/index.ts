@@ -108,6 +108,43 @@ function init(targetDir: string): void {
   );
 }
 
+/**
+ * Re-quotes a single argv token so that re-joining tokens with spaces and
+ * handing the result to a real shell (`spawnSync(command, { shell: true })`)
+ * reproduces the same argument boundaries the OS already gave us — e.g. a
+ * token like `fix bug` (from `-m "fix bug"`) must come back out as one
+ * argument, not two. Only whitespace and the platform's quote character
+ * trigger quoting; everything else (`|`, `~`, `*`, `$`, ...) is left alone
+ * so shell features keep working when a caller deliberately passes a whole
+ * pipeline as one token, e.g. `exec -- sh -c "curl url | bash"`.
+ */
+function quoteShellArg(token: string): string {
+  if (process.platform === 'win32') {
+    if (token !== '' && !/[\s"]/.test(token)) return token;
+    return `"${token.replace(/"/g, '""')}"`;
+  }
+  if (token !== '' && !/[\s']/.test(token)) return token;
+  return `'${token.replace(/'/g, `'\\''`)}'`;
+}
+
+export function parseExecArgs(args: string[]): {
+  command: string;
+  nonInteractive: boolean;
+  yesToAsk: boolean;
+} {
+  const separator = args.indexOf('--');
+  const optionArgs = separator === -1 ? args : args.slice(0, separator);
+  const commandArgs = separator === -1 ? [] : args.slice(separator + 1);
+  if (commandArgs.length === 0) {
+    throw new Error('Usage: adr-guard exec [--non-interactive|--yes-to-ask] -- <command...>');
+  }
+  return {
+    command: commandArgs.map(quoteShellArg).join(' '),
+    nonInteractive: optionArgs.includes('--non-interactive'),
+    yesToAsk: optionArgs.includes('--yes-to-ask'),
+  };
+}
+
 /** `dirArg` (e.g. from argv) may be relative (resolved against `cwd`) or already absolute (returned as-is — `path.join` would otherwise mangle it). */
 export function resolveTargetDir(cwd: string, dirArg: string | undefined): string {
   return dirArg ? resolve(cwd, dirArg) : cwd;
