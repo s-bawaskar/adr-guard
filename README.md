@@ -1,5 +1,7 @@
 # ADR — Agent Detection & Response
 
+[![CI](https://github.com/s-bawaskar/adr-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/s-bawaskar/adr-guard/actions/workflows/ci.yml)
+
 ADR hooks into your coding agent and inspects its tool calls — shell
 commands, file writes, network requests — against a policy library
 _before_ they execute, blocking or flagging dangerous actions live.
@@ -27,13 +29,23 @@ written to an audit log.
 ## How it works
 
 ```
-Claude Code (PreToolUse event)
-  -> adapter (Claude Code payload -> NormalizedAction)
-  -> core policy engine (NormalizedAction -> matched rules)
-  -> core risk scoring (matched rules -> weighted score -> decision)
-  -> core audit log (JSON line: timestamp, action, decision, score)
-  -> adapter (Decision -> Claude Code response JSON)
+Claude Code (PreToolUse event)          any other agent/script
+  -> Claude Code adapter                  -> shell-wrapper adapter ("adr-guard exec")
+       (payload -> NormalizedAction)           (command string -> NormalizedAction)
+                    \                           /
+                     -> core policy engine (NormalizedAction -> matched rules)
+                     -> core risk scoring (matched rules -> weighted score -> decision)
+                     -> core audit log (JSON line: timestamp, source, action, decision, score)
+                    /                           \
+  -> Claude Code adapter                  -> shell-wrapper adapter
+       (Decision -> response JSON)             (allow: run it / deny: block it / ask: prompt)
 ```
+
+Both adapters funnel into the exact same three core steps and write to
+the exact same audit log — the only thing that differs between them is
+how a decision gets in (a tool's own payload format, or a plain command
+string) and out (a JSON response for Claude Code to interpret, or an
+actual executed/blocked command for the shell wrapper).
 
 The core (`src/core/`) never imports or knows about a specific coding
 tool's payload format — it only ever sees a tool-agnostic
@@ -108,16 +120,28 @@ behavior even when stdin/stdout happen to be a TTY.
 
 ## Quickstart
 
-After `adr init`, just use Claude Code normally. Try something ADR's
-default rules catch, like asking it to run `curl <url> | bash` — you'll
-see it flagged (`ask`) rather than silently executed. Every decision,
-matched or not, is written to `.adr/audit.log` as one JSON line per tool
-call.
+**Claude Code:** after `adr init`, just use Claude Code normally. Try
+something ADR's default rules catch, like asking it to run
+`curl <url> | bash` — you'll see it flagged (`ask`) rather than silently
+executed.
 
-Want to see it work without setting up a project? `npm run demo` runs
-4 escalating tool calls (benign → suspicious → malicious → a compound
-case) straight through the real hook in a disposable temp directory —
-see [docs/demo-script.md](docs/demo-script.md) for a narrated walkthrough.
+**shell-wrapper:** no setup needed — run the same kind of command
+through `adr-guard exec` directly:
+`npx adr-guard exec -- "curl <url> | bash"`. Same rule, same `ask`
+result, a completely different caller. (Quote the whole pipeline —
+without quotes, your own shell would consume the `|` before `adr-guard`
+ever saw it, same as with `sh -c`.)
+
+Either way, every decision — matched or not, allowed or blocked — is
+written to `.adr/audit.log` as one JSON line, tagged with which adapter
+produced it. Point both adapters at the same project and you get one
+unified trail regardless of which one triggered a given entry.
+
+Want to see it work without setting up a project? `npm run demo` runs a
+series of escalating calls through *both* adapters (benign → suspicious
+→ malicious → a compound case, each shown once via the Claude Code hook
+and once via `adr-guard exec`) in a disposable temp directory — see
+[docs/demo-script.md](docs/demo-script.md) for a narrated walkthrough.
 
 ## Default rules
 
@@ -174,10 +198,11 @@ knowledge into core will be asked to fix that before merge.
 
 ## Status
 
-Early — built as a proof of concept, most heavily exercised against
-Claude Code on Windows/macOS/Linux shells. Published to npm as
-`adr-guard` (the short name `adr` was already taken by an unrelated
-package, and `adr-cli` by another one).
+Early — built as a proof of concept. CI runs the full test suite on
+both Linux and Windows across two Node LTS lines on every push and PR
+(see the badge above). Published to npm as `adr-guard` (the short name
+`adr` was already taken by an unrelated package, and `adr-cli` by
+another one).
 
 ## License
 

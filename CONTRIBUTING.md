@@ -32,14 +32,17 @@ This is the one architectural rule the project actually enforces:
 **`src/core/` must never import from, or have type-level knowledge of,
 `src/adapters/**`.** Core only ever consumes and produces
 `NormalizedAction` / `PolicyResult` (see `src/core/types.ts`). Adapter
-code (currently only `src/adapters/claude-code/`) is the only place
-allowed to know a specific coding tool's raw payload shape.
+code — `src/adapters/claude-code/` (Claude Code's hook payload) and
+`src/adapters/shell-wrapper/` (a bare command string, for any other
+agent or script) today — is the only place allowed to know a specific
+tool's raw input shape.
 
-This isn't cosmetic — it's what makes adding a second adapter (Cursor,
-an OS-level hook, whatever) a new folder under `src/adapters/` instead
-of a rewrite of the policy engine, scoring, or audit log. A PR that
-leaks adapter-specific field names or assumptions into `src/core/` will
-be asked to fix that before merge, even if the feature itself is fine.
+This isn't cosmetic — it's what makes adding a new adapter (Cursor, an
+OS-level hook, whatever) a new folder under `src/adapters/` instead of a
+rewrite of the policy engine, scoring, or audit log, and it's already
+been proven twice, not just asserted once. A PR that leaks
+adapter-specific field names or assumptions into `src/core/` will be
+asked to fix that before merge, even if the feature itself is fine.
 
 ### Adding a new adapter
 
