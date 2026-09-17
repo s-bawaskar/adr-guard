@@ -1,0 +1,15 @@
+id: system-path-write
+appliesTo: file_write
+field: filePath
+match:
+  kind: path_prefix
+  prefixes:
+    - /etc/
+    - /usr/
+    - /bin/
+    - /sbin/
+    - /System/
+    - 'C:/Windows/'
+    - 'C:/Program Files/'
+severity: high
+message: 'Write targets a system directory rather than the project workspace'

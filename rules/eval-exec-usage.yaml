@@ -1,0 +1,8 @@
+id: eval-exec-usage
+appliesTo: any
+field: [command, content]
+match:
+  kind: regex
+  pattern: '\b(eval|exec)\s*\('
+severity: medium
+message: 'Uses eval(/exec( which can run dynamically constructed code'

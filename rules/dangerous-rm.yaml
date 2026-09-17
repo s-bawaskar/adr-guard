@@ -1,0 +1,9 @@
+id: dangerous-rm
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '\brm\s+(?:-[\w-]+\s+)*-(?:[\w-]*r[\w-]*f[\w-]*|[\w-]*f[\w-]*r[\w-]*)(?:\s+-[\w-]+)*\s+(\/|~\/?|\*|\.\.?\/?|\$HOME)(?=\s|$)'
+  flags: 'i'
+severity: critical
+message: 'Recursive force-delete targeting a broad path (/, ~, *, .., $HOME)'

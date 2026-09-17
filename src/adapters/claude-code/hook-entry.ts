@@ -10,11 +10,18 @@
  * normalize() only sees NormalizedAction / PolicyResult.
  */
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { appendAuditLogEntry } from '../../core/audit-log.js';
 import { decide, evaluate } from '../../core/policy-engine.js';
+import { loadCompiledRules } from '../../core/rule-loader.js';
 import type { Decision, RuleMatch } from '../../core/types.js';
 import { normalize } from './normalize.js';
 import type { ClaudeCodePreToolUsePayload } from './payload-types.js';
+
+// dist/adapters/claude-code/hook-entry.js -> package root -> rules/
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const RULES = loadCompiledRules(join(PACKAGE_ROOT, 'rules'));
 
 function readStdin(): string {
   try {
@@ -84,7 +91,7 @@ function main(): void {
   }
 
   const action = normalize(payload);
-  const matches = evaluate(action);
+  const matches = evaluate(action, RULES);
   const result = decide(matches);
 
   appendAuditLogEntry(resolveBaseDir(payload), action, result);

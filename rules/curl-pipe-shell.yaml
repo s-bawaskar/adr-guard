@@ -1,0 +1,9 @@
+id: curl-pipe-shell
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(sh|bash|zsh)\b'
+  flags: 'i'
+severity: high
+message: 'Downloads a remote script and pipes it directly into a shell interpreter'
