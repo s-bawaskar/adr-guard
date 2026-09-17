@@ -1,0 +1,9 @@
+id: ssh-key-exfiltration
+appliesTo: any
+field: [command, filePath]
+match:
+  kind: regex
+  pattern: '^[^\s]*\.ssh\/(id_(rsa|dsa|ecdsa|ed25519)(?!\.pub)\b|authorized_keys\b|known_hosts\b)|\b(cat|scp|rsync|nc|ncat|curl|wget)\b(?:\s+-{1,2}[^\s]+)*\s+[^\s]*\.ssh\/(id_(rsa|dsa|ecdsa|ed25519)(?!\.pub)\b|authorized_keys\b|known_hosts\b)'
+  flags: 'i'
+severity: high
+message: 'Reads, writes, or exfiltrates SSH private key material or authorized_keys/known_hosts'

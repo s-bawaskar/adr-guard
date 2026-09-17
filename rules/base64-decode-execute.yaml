@@ -1,0 +1,9 @@
+id: base64-decode-execute
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '\bbase64\b[^|]*(-d\b|--decode\b)[^|]*\|\s*(sudo\s+)?(sh|bash|zsh|dash)\b'
+  flags: 'i'
+severity: critical
+message: 'Decodes a base64 payload and pipes it directly into a shell interpreter — a common obfuscated-execution idiom'

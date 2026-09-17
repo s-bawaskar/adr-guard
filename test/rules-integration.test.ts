@@ -16,12 +16,17 @@ function decideFor(a: NormalizedAction): PolicyResult {
 }
 
 describe('shipped rules/*.yaml, loaded and evaluated end-to-end', () => {
-  it('loads all 6 shipped rule files', () => {
+  it('loads all 11 shipped rule files', () => {
     expect(rules.map((r) => r.id).sort()).toEqual([
+      'base64-decode-execute',
+      'chmod-world-writable',
       'credential-file-write',
       'curl-pipe-shell',
       'dangerous-rm',
       'eval-exec-usage',
+      'install-from-arbitrary-url',
+      'shell-rc-persistence',
+      'ssh-key-exfiltration',
       'system-path-write',
       'unallowlisted-network-host',
     ]);
@@ -41,11 +46,11 @@ describe('shipped rules/*.yaml, loaded and evaluated end-to-end', () => {
     expect(result.decision).toBe('ask');
   });
 
-  it('flags writes to credential-shaped paths', () => {
+  it('flags writes to credential-shaped paths (now caught by two rules, escalating to deny)', () => {
     const result = decideFor(
       action({ type: 'file_write', filePath: '/home/user/.ssh/id_rsa', content: 'x' }),
     );
-    expect(result.decision).toBe('ask');
+    expect(result.decision).toBe('deny');
   });
 
   it('flags writes into system directories via path_prefix', () => {
@@ -70,13 +75,14 @@ describe('shipped rules/*.yaml, loaded and evaluated end-to-end', () => {
   });
 
   it('escalates to deny when a write is BOTH a credential path AND a system path (cumulative scoring)', () => {
-    // credential-file-write (high, 6) + system-path-write (high, 6) = 12 >= deny threshold (10),
-    // even though neither rule alone is "critical". This is the weighted-scoring
-    // behavior Phase 6 adds on top of Phase 3's single-worst-severity approach.
+    // credential-file-write (high, 6) + system-path-write (high, 6) + ssh-key-exfiltration
+    // (high, 6) = 18 >= deny threshold (10), even though no single rule alone is "critical".
+    // This is the weighted-scoring behavior Phase 6 adds on top of Phase 3's
+    // single-worst-severity approach.
     const result = decideFor(
       action({ type: 'file_write', filePath: '/etc/.ssh/id_rsa', content: 'x' }),
     );
-    expect(result.matches.filter((m) => m.matched)).toHaveLength(2);
+    expect(result.matches.filter((m) => m.matched)).toHaveLength(3);
     expect(result.severity).toBe('high');
     expect(result.decision).toBe('deny');
   });

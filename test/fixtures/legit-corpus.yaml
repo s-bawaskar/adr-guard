@@ -90,3 +90,75 @@
 
 - description: fetch package metadata from the npm registry
   action: { type: network, url: 'https://registry.npmjs.org/react' }
+
+- description: read your own public SSH key to copy it somewhere
+  action: { type: file_read, filePath: '/home/user/.ssh/id_rsa.pub' }
+
+- description: cat your own public SSH key
+  action: { type: shell, command: 'cat ~/.ssh/id_rsa.pub' }
+
+- description: read SSH client config to check host aliases
+  action: { type: file_read, filePath: '/home/user/.ssh/config' }
+
+- description: fix SSH private key permissions (best practice, not exfiltration)
+  action: { type: shell, command: 'chmod 600 ~/.ssh/id_rsa' }
+
+- description: generate a brand new SSH key pair
+  action: { type: shell, command: 'ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""' }
+
+- description: copy your own public key to a remote server's authorized_keys (ssh-copy-id-style setup)
+  action: { type: shell, command: 'scp ~/.ssh/id_rsa.pub deploy@server.example:.ssh/authorized_keys' }
+
+- description: connect to a remote host over ssh
+  action: { type: shell, command: 'ssh deploy@server.example' }
+
+- description: set standard, non-permissive file permissions
+  action: { type: shell, command: 'chmod 644 README.md' }
+
+- description: make a script executable for the owner (not world-writable)
+  action: { type: shell, command: 'chmod +x scripts/deploy.sh' }
+
+- description: restrictive recursive permissions on a build output directory
+  action: { type: shell, command: 'chmod -R 755 dist/' }
+
+- description: view current shell profile contents
+  action: { type: shell, command: 'cat ~/.bashrc' }
+
+- description: reload shell profile in the current session
+  action: { type: shell, command: 'source ~/.bashrc' }
+
+- description: list scheduled cron jobs
+  action: { type: shell, command: 'crontab -l' }
+
+- description: edit .bashrc through the normal file-edit tool, not a raw shell append
+  action:
+    {
+      type: file_write,
+      filePath: '/home/user/.bashrc',
+      content: 'export PATH="$HOME/.local/bin:$PATH"',
+    }
+
+- description: decode a base64 string and just print it, without piping into a shell
+  action: { type: shell, command: "echo 'aGVsbG8=' | base64 -d" }
+
+- description: decode a base64 file to a binary output file
+  action: { type: shell, command: 'base64 -d cert.pem.b64 > cert.pem' }
+
+- description: install a package from the public PyPI registry
+  action: { type: shell, command: 'pip install requests' }
+
+- description: install a Python package directly from its official GitHub repo (common pre-release workflow)
+  action: { type: shell, command: 'pip install git+https://github.com/psf/requests.git' }
+
+- description: install an npm package by GitHub shorthand
+  action: { type: shell, command: 'npm install github:lodash/lodash' }
+
+- description: install an npm package tarball straight from GitHub
+  action:
+    {
+      type: shell,
+      command: 'npm install https://github.com/foo/bar/archive/refs/heads/main.tar.gz',
+    }
+
+- description: install a Go tool from its well-known public host
+  action: { type: shell, command: 'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest' }

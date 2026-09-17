@@ -1,0 +1,9 @@
+id: shell-rc-persistence
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '(>>|>)\s*[^\s]*(?:(?:~\/)?\.(?:bashrc|zshrc|bash_profile|zprofile|profile)\b|\/etc\/profile\b)|\btee\b(?:\s+-a\b)?\s+[^\s]*(?:(?:~\/)?\.(?:bashrc|zshrc|bash_profile|zprofile|profile)\b|\/etc\/profile\b)|\bcrontab\b\s+-e\b|\|\s*crontab\b(?:\s+-)?\b'
+  flags: 'i'
+severity: high
+message: 'Appends to a shell profile or crontab via raw shell redirection — a common persistence technique'

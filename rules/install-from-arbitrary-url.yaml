@@ -1,0 +1,9 @@
+id: install-from-arbitrary-url
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '\bpip3?\s+install\b[^\n]*?\b(?:git\+)?(?:https?|git|ssh):\/\/(?!(?:[\w.-]*\.)?(?:github\.com|githubusercontent\.com|gitlab\.com|bitbucket\.org|pypi\.org|files\.pythonhosted\.org|registry\.npmjs\.org|npmjs\.com|golang\.org|gopkg\.in|pkg\.go\.dev|sourcehut\.org|git\.sr\.ht)(?=[\/:\s]|$))[^\s]+|\b(?:npm\s+(?:i|install)|yarn\s+add)\b[^\n]*?\b(?:git\+)?(?:https?|git|ssh):\/\/(?!(?:[\w.-]*\.)?(?:github\.com|githubusercontent\.com|gitlab\.com|bitbucket\.org|pypi\.org|files\.pythonhosted\.org|registry\.npmjs\.org|npmjs\.com|golang\.org|gopkg\.in|pkg\.go\.dev|sourcehut\.org|git\.sr\.ht)(?=[\/:\s]|$))[^\s]+|\bgo\s+install\b\s+(?!(?:[\w.-]*\.)?(?:github\.com|githubusercontent\.com|gitlab\.com|bitbucket\.org|pypi\.org|files\.pythonhosted\.org|registry\.npmjs\.org|npmjs\.com|golang\.org|gopkg\.in|pkg\.go\.dev|sourcehut\.org|git\.sr\.ht)(?=[\/:\s]|$))[a-zA-Z0-9][\w.-]*\.[a-z]{2,}\/[^\s]+'
+  flags: 'i'
+severity: medium
+message: 'Installs a package directly from a URL/host outside the trusted registry and forge allowlist, rather than a named registry package'

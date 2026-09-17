@@ -145,14 +145,19 @@ and once via `adr-guard exec`) in a disposable temp directory — see
 
 ## Default rules
 
-| Rule                         | Severity | Triggers on                                                           |
-| ---------------------------- | -------- | --------------------------------------------------------------------- |
-| `dangerous-rm`               | critical | `rm -rf` targeting a broad path (`/`, `~`, `*`, `..`, `$HOME`)        |
-| `curl-pipe-shell`            | high     | `curl`/`wget` piped into `sh`/`bash`/`zsh`                            |
-| `credential-file-write`      | high     | writes to `.ssh/`, `.env`, `id_rsa`, `.aws/credentials`, `.pem`, etc. |
-| `system-path-write`          | high     | writes into `/etc/`, `/usr/`, `C:/Windows/`, etc.                     |
-| `eval-exec-usage`            | medium   | `eval(`/`exec(` in a command or file write                            |
-| `unallowlisted-network-host` | medium   | outbound request to a host not on the default allowlist               |
+| Rule                          | Severity | Triggers on                                                                       |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `dangerous-rm`                | critical | `rm -rf` targeting a broad path (`/`, `~`, `*`, `..`, `$HOME`)                    |
+| `base64-decode-execute`       | critical | base64-decoding a payload and piping it directly into `sh`/`bash`/`zsh`           |
+| `curl-pipe-shell`             | high     | `curl`/`wget` piped into `sh`/`bash`/`zsh`                                        |
+| `credential-file-write`       | high     | writes to `.ssh/`, `.env`, `id_rsa`, `.aws/credentials`, `.pem`, etc.             |
+| `system-path-write`           | high     | writes into `/etc/`, `/usr/`, `C:/Windows/`, etc.                                 |
+| `ssh-key-exfiltration`        | high     | reads/writes of SSH private keys or `authorized_keys`/`known_hosts`, or `cat`/`scp`/`curl`/`rsync` targeting them |
+| `shell-rc-persistence`        | high     | raw shell append/`tee` to `.bashrc`/`.zshrc`/`.profile`/`/etc/profile`, or piping a new crontab in |
+| `eval-exec-usage`             | medium   | `eval(`/`exec(` in a command or file write                                        |
+| `unallowlisted-network-host`  | medium   | outbound request to a host not on the default allowlist                          |
+| `chmod-world-writable`        | medium   | `chmod 777`/`666`/etc. or symbolic grants like `o+w`, `a+rwx`                     |
+| `install-from-arbitrary-url`  | medium   | `pip`/`npm`/`go install` from a URL/host outside the trusted registry/forge list  |
 
 Decisions aren't just "worst rule wins" — risk scores from multiple
 triggered rules add up, so e.g. a write that's _both_ a credential path

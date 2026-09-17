@@ -1,0 +1,9 @@
+id: chmod-world-writable
+appliesTo: shell
+field: command
+match:
+  kind: regex
+  pattern: '\bchmod\b(?:\s+-{1,2}\S+)*\s+(?:0?[0-7]{2}[67]\b|(?:a|ugo|go|o)\+\w*w\w*)'
+  flags: 'i'
+severity: medium
+message: 'Sets world-writable or otherwise overly permissive file permissions'

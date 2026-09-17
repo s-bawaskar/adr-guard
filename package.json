@@ -1,6 +1,6 @@
 {
   "name": "adr-guard",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Agent Detection & Response — tool-agnostic detection engine that intercepts coding-agent tool calls before execution",
   "type": "module",
   "bin": {
