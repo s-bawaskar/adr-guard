@@ -16,3 +16,19 @@ export interface NormalizedAction {
   /** e.g. "claude-code" — the only place an adapter's identity appears in core. */
   source: string;
 }
+
+export type Severity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface RuleMatch {
+  ruleId: string;
+  matched: boolean;
+  severity: Severity;
+  reason: string;
+}
+
+export type Decision = 'allow' | 'ask' | 'deny';
+
+export interface PolicyResult {
+  decision: Decision;
+  matches: RuleMatch[];
+}

@@ -2,14 +2,18 @@
 /**
  * PreToolUse hook entry point for Claude Code.
  *
- * Phase 1: proof of interception only. No policy logic — reads the hook
- * payload from stdin, logs it, and unconditionally allows the tool call.
- * This file is the ONLY place in the repo that speaks Claude Code's raw
- * hook JSON at this phase; normalization into core's tool-agnostic shape
- * lands in Phase 2 (normalize.ts).
+ * Reads the hook payload from stdin, logs it, normalizes it, runs it
+ * through the core policy engine, and translates the resulting decision
+ * back into Claude Code's expected JSON response shape. This file (plus
+ * normalize.ts) is the only place in the repo that speaks Claude Code's
+ * raw hook JSON — everything past normalize() only sees NormalizedAction.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { decide, evaluate } from '../../core/policy-engine.js';
+import type { Decision, RuleMatch } from '../../core/types.js';
+import { normalize } from './normalize.js';
+import type { ClaudeCodePreToolUsePayload } from './payload-types.js';
 
 function readStdin(): string {
   try {
@@ -40,6 +44,36 @@ function resolveLogDir(payload: unknown): string {
   return join(process.cwd(), '.adr');
 }
 
+function isPreToolUsePayload(payload: unknown): payload is ClaudeCodePreToolUsePayload {
+  return (
+    payload !== null &&
+    typeof payload === 'object' &&
+    'tool_name' in payload &&
+    typeof (payload as { tool_name: unknown }).tool_name === 'string' &&
+    'tool_input' in payload
+  );
+}
+
+function reasonFrom(matches: RuleMatch[]): string {
+  const triggered = matches.filter((m) => m.matched);
+  if (triggered.length === 0) {
+    return 'No policy rules matched';
+  }
+  return triggered.map((m) => `[${m.severity}] ${m.ruleId}: ${m.reason}`).join('; ');
+}
+
+function respond(decision: Decision, reason: string): void {
+  const response = {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: decision,
+      permissionDecisionReason: reason,
+    },
+  };
+  process.stdout.write(JSON.stringify(response));
+  process.exit(0);
+}
+
 function main(): void {
   const raw = readStdin();
   const payload = safeParseJson(raw);
@@ -56,16 +90,16 @@ function main(): void {
   });
   appendFileSync(join(logDir, 'raw-payloads.log'), logLine + '\n');
 
-  const response = {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'allow',
-      permissionDecisionReason: 'ADR Phase 1 stub: logging only, no policy evaluation yet',
-    },
-  };
+  if (!isPreToolUsePayload(payload)) {
+    respond('allow', 'ADR: unparsable or unrecognized payload shape, defaulting to allow');
+    return;
+  }
 
-  process.stdout.write(JSON.stringify(response));
-  process.exit(0);
+  const action = normalize(payload);
+  const matches = evaluate(action);
+  const { decision } = decide(matches);
+
+  respond(decision, reasonFrom(matches));
 }
 
 main();
