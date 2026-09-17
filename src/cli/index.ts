@@ -13,7 +13,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, extname, join } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // dist/cli/index.js -> package root
@@ -108,9 +108,14 @@ function init(targetDir: string): void {
   );
 }
 
+/** `dirArg` (e.g. from argv) may be relative (resolved against `cwd`) or already absolute (returned as-is — `path.join` would otherwise mangle it). */
+export function resolveTargetDir(cwd: string, dirArg: string | undefined): string {
+  return dirArg ? resolve(cwd, dirArg) : cwd;
+}
+
 function main(): void {
   const [, , command, ...rest] = process.argv;
-  const targetDir = rest[0] ? join(process.cwd(), rest[0]) : process.cwd();
+  const targetDir = resolveTargetDir(process.cwd(), rest[0]);
 
   if (command === 'init') {
     init(targetDir);
