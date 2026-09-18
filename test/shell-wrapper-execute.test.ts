@@ -175,4 +175,16 @@ describe('runShellCommand (shell-wrapper adapter)', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(exitCode).toBe(0);
   });
+
+  it('a project adr.config.yaml raising askThreshold changes an ask-band command to allow', async () => {
+    // ASK_TRIGGER scores 3 (medium), which is the default askThreshold — bumping
+    // it to 4 should drop the same command below the ask band entirely.
+    writeFileSync(join(baseDir, 'adr.config.yaml'), 'askThreshold: 4\ndenyThreshold: 10\n');
+    const execute = vi.fn().mockReturnValue(0);
+
+    const exitCode = await runShellCommand(`echo ${ASK_TRIGGER}`, options({ execute }));
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(exitCode).toBe(0);
+  });
 });

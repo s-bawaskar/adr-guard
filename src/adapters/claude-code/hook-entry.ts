@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendAuditLogEntry } from '../../core/audit-log.js';
+import { ConfigValidationError, loadAdrConfig } from '../../core/config.js';
 import { decide, evaluate } from '../../core/policy-engine.js';
 import { loadCompiledRules } from '../../core/rule-loader.js';
 import type { Decision, RuleMatch } from '../../core/types.js';
@@ -100,9 +101,20 @@ function main(): void {
   const baseDir = resolveBaseDir(payload);
   const rules = loadCompiledRules(resolveRulesDir(baseDir));
 
+  let config;
+  try {
+    config = loadAdrConfig(baseDir);
+  } catch (error) {
+    if (error instanceof ConfigValidationError) {
+      respond('deny', `ADR: ${error.message} — fix adr.config.yaml and retry`);
+      return;
+    }
+    throw error;
+  }
+
   const action = normalize(payload);
   const matches = evaluate(action, rules);
-  const result = decide(action, matches);
+  const result = decide(action, matches, config);
 
   appendAuditLogEntry(baseDir, action, result);
 

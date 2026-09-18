@@ -1,4 +1,5 @@
 import { score } from './scoring.js';
+import type { ScoreThresholds } from './scoring.js';
 import type { NormalizedAction, PolicyResult, RuleMatch, Severity } from './types.js';
 
 /** A rule compiled from data (see rule-loader.ts) into runtime predicates. */
@@ -33,10 +34,16 @@ const SEVERITY_RANK: Record<Severity, number> = { low: 0, medium: 1, high: 2, cr
  * match, for display/audit purposes, and can legitimately disagree
  * with `decision` (high severity + ask-level score, but deny once a
  * second high match pushes the total over threshold).
+ * `thresholds` is forwarded to `score()` as-is — see its doc comment for
+ * the default-when-omitted behavior.
  */
-export function decide(action: NormalizedAction, matches: RuleMatch[]): PolicyResult {
+export function decide(
+  action: NormalizedAction,
+  matches: RuleMatch[],
+  thresholds?: ScoreThresholds,
+): PolicyResult {
   const triggered = matches.filter((m) => m.matched);
-  const { score: total, decision } = score(action, matches);
+  const { score: total, decision } = score(action, matches, thresholds);
 
   if (triggered.length === 0) {
     return { decision, score: total, matches };

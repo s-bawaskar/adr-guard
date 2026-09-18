@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { appendAuditLogEntry } from '../../core/audit-log.js';
+import { loadAdrConfig } from '../../core/config.js';
 import { decide, evaluate } from '../../core/policy-engine.js';
 import { loadCompiledRules } from '../../core/rule-loader.js';
 import type { Decision, RuleMatch } from '../../core/types.js';
@@ -66,9 +67,10 @@ export async function runShellCommand(
 ): Promise<number> {
   const baseDir = options.baseDir ?? process.cwd();
   const rulesDir = options.rulesDir ?? (existsSync(join(baseDir, 'rules')) ? join(baseDir, 'rules') : DEFAULT_RULES_DIR);
+  const config = loadAdrConfig(baseDir);
   const action = normalize(command);
   const matches = evaluate(action, loadCompiledRules(rulesDir));
-  const result = decide(action, matches);
+  const result = decide(action, matches, config);
   const reason = reasonFrom(matches, result.score);
 
   appendAuditLogEntry(baseDir, action, result);
