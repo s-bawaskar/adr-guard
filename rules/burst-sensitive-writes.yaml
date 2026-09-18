@@ -1,0 +1,10 @@
+id: burst-sensitive-writes
+appliesTo: any
+match:
+  kind: rate_window
+  windowSeconds: 120
+  threshold: 5
+  of:
+    ruleId: credential-file-write
+severity: critical
+message: 'credential-file-write matched 5 or more times within 2 minutes — possible credential harvesting attempt'

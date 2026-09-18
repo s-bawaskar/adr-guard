@@ -1,0 +1,10 @@
+id: burst-of-denies
+appliesTo: any
+match:
+  kind: rate_window
+  windowSeconds: 60
+  threshold: 3
+  of:
+    decision: deny
+severity: high
+message: '3 or more denied actions within 60 seconds — possible probing/retry behavior'
