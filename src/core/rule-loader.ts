@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { load as parseYaml } from 'js-yaml';
 import type { CompiledRule } from './policy-engine.js';
-import type { NormalizedAction, NormalizedActionType, Severity } from './types.js';
+import type { Decision, NormalizedAction, NormalizedActionType, Severity } from './types.js';
 
 /** Fields on NormalizedAction a rule's `match` can be tested against. */
 export type MatchField = 'command' | 'content' | 'filePath' | 'url';
@@ -39,7 +39,22 @@ export interface DomainDenylistMatch {
   domains: string[];
 }
 
-export type MatchSpec = RegexMatch | PathPrefixMatch | DomainAllowlistMatch | DomainDenylistMatch;
+/** Either of, mutually exclusive: "N times rule <ruleId> matched" or "N actions decided <decision>" within `windowSeconds`. */
+export type RateWindowOf = { ruleId: string } | { decision: Decision };
+
+export interface RateWindowMatch {
+  kind: 'rate_window';
+  windowSeconds: number;
+  threshold: number;
+  of: RateWindowOf;
+}
+
+export type MatchSpec =
+  | RegexMatch
+  | PathPrefixMatch
+  | DomainAllowlistMatch
+  | DomainDenylistMatch
+  | RateWindowMatch;
 
 export interface RuleDefinition {
   id: string;
@@ -51,7 +66,7 @@ export interface RuleDefinition {
   message: string;
 }
 
-class RuleValidationError extends Error {
+export class RuleValidationError extends Error {
   constructor(sourceFile: string, reason: string) {
     super(`Invalid rule in ${sourceFile}: ${reason}`);
     this.name = 'RuleValidationError';
@@ -98,10 +113,48 @@ function validateMatchSpec(raw: unknown, sourceFile: string): MatchSpec {
       assert(isStringArray(raw.domains), sourceFile, 'match.domains must be an array of strings');
       return { kind: 'domain_denylist', domains: raw.domains };
 
+    case 'rate_window': {
+      assert(
+        typeof raw.windowSeconds === 'number' && raw.windowSeconds > 0,
+        sourceFile,
+        'match.windowSeconds must be a positive number',
+      );
+      assert(
+        typeof raw.threshold === 'number' && Number.isInteger(raw.threshold) && raw.threshold > 0,
+        sourceFile,
+        'match.threshold must be a positive integer',
+      );
+      assert(
+        isRecord(raw.of),
+        sourceFile,
+        'match.of must be an object with exactly one of "ruleId" or "decision"',
+      );
+      const hasRuleId = typeof raw.of.ruleId === 'string';
+      const hasDecision = typeof raw.of.decision === 'string';
+      assert(
+        hasRuleId !== hasDecision,
+        sourceFile,
+        'match.of must have exactly one of "ruleId" (string) or "decision" (string), not both or neither',
+      );
+      if (hasDecision) {
+        assert(
+          (['allow', 'ask', 'deny'] as string[]).includes(raw.of.decision as string),
+          sourceFile,
+          `match.of.decision must be one of allow, ask, deny (got ${JSON.stringify(raw.of.decision)})`,
+        );
+      }
+      return {
+        kind: 'rate_window',
+        windowSeconds: raw.windowSeconds,
+        threshold: raw.threshold,
+        of: hasRuleId ? { ruleId: raw.of.ruleId as string } : { decision: raw.of.decision as Decision },
+      };
+    }
+
     default:
       throw new RuleValidationError(
         sourceFile,
-        `match.kind must be one of regex, path_prefix, domain_allowlist, domain_denylist (got ${JSON.stringify(kind)})`,
+        `match.kind must be one of regex, path_prefix, domain_allowlist, domain_denylist, rate_window (got ${JSON.stringify(kind)})`,
       );
   }
 }
@@ -226,12 +279,78 @@ export function compileRule(def: RuleDefinition): CompiledRule {
         });
       break;
     }
+    case 'rate_window':
+      // rate_window rules are history-aware (see CompiledRateRule /
+      // compileRateRule below) and are filtered out before reaching this
+      // function by every caller (loadCompiledRules). Guarded here only
+      // so the switch stays exhaustive for the type checker.
+      throw new RuleValidationError(def.id, 'rate_window rules must be compiled via compileRateRule, not compileRule');
   }
 
   return { id: def.id, severity: def.severity, reason: def.message, applies, test };
 }
 
-/** Loads every rule file in `rulesDir` and compiles it, ready to pass to policy-engine's evaluate(). */
+/** A rate_window rule compiled into runtime shape — history-aware, so it can't expose a stateless test(action) like CompiledRule. Evaluated by policy-engine's evaluateRateRules(), against state read via rate-state.ts. */
+export interface CompiledRateRule {
+  id: string;
+  severity: Severity;
+  reason: string;
+  applies: (action: NormalizedAction) => boolean;
+  windowSeconds: number;
+  threshold: number;
+  of: RateWindowOf;
+}
+
+/**
+ * Compiles a rate_window RuleDefinition, resolving `of.ruleId` (if used)
+ * against `allDefs` — the full set of rules loaded from the same
+ * directory. This is the first rule kind with a cross-rule dependency:
+ * unlike every other kind, a rate rule's validity depends on what else
+ * is in the rule set, not just its own file, so this can only run once
+ * every file has been parsed.
+ */
+export function compileRateRule(def: RuleDefinition, allDefs: RuleDefinition[]): CompiledRateRule {
+  if (def.match.kind !== 'rate_window') {
+    throw new RuleValidationError(def.id, 'compileRateRule requires a rate_window rule');
+  }
+  const { match } = def;
+
+  if ('ruleId' in match.of) {
+    const { ruleId } = match.of;
+    const target = allDefs.find((d) => d.id === ruleId);
+    assert(target !== undefined, def.id, `rate rule references unknown ofRuleId "${ruleId}"`);
+    assert(
+      target.match.kind !== 'rate_window',
+      def.id,
+      `rate rule's ofRuleId "${match.of.ruleId}" refers to another rate_window rule — rate rules can only reference stateless (non-rate) rules, since rate-rule matches aren't recorded to history`,
+    );
+  }
+
+  const applies = (action: NormalizedAction): boolean =>
+    def.appliesTo === 'any' || action.type === def.appliesTo;
+
+  return {
+    id: def.id,
+    severity: def.severity,
+    reason: def.message,
+    applies,
+    windowSeconds: match.windowSeconds,
+    threshold: match.threshold,
+    of: match.of,
+  };
+}
+
+/** Loads every stateless (non-rate_window) rule file in `rulesDir` and compiles it, ready to pass to policy-engine's evaluate(). */
 export function loadCompiledRules(rulesDir: string): CompiledRule[] {
-  return loadRuleDefinitions(rulesDir).map(compileRule);
+  return loadRuleDefinitions(rulesDir)
+    .filter((def) => def.match.kind !== 'rate_window')
+    .map(compileRule);
+}
+
+/** Loads every rate_window rule file in `rulesDir` and compiles it, cross-validating ofRuleId against the full rule set. */
+export function loadCompiledRateRules(rulesDir: string): CompiledRateRule[] {
+  const allDefs = loadRuleDefinitions(rulesDir);
+  return allDefs
+    .filter((def) => def.match.kind === 'rate_window')
+    .map((def) => compileRateRule(def, allDefs));
 }

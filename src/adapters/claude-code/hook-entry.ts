@@ -14,8 +14,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendAuditLogEntry } from '../../core/audit-log.js';
 import { ConfigValidationError, loadAdrConfig } from '../../core/config.js';
-import { decide, evaluate } from '../../core/policy-engine.js';
-import { loadCompiledRules } from '../../core/rule-loader.js';
+import { decide, evaluate, evaluateRateRules } from '../../core/policy-engine.js';
+import { recordRateEvent, readRecentRateEvents } from '../../core/rate-state.js';
+import { loadCompiledRateRules, loadCompiledRules } from '../../core/rule-loader.js';
 import type { Decision, RuleMatch } from '../../core/types.js';
 import { normalize } from './normalize.js';
 import type { ClaudeCodePreToolUsePayload } from './payload-types.js';
@@ -99,7 +100,9 @@ function main(): void {
   }
 
   const baseDir = resolveBaseDir(payload);
-  const rules = loadCompiledRules(resolveRulesDir(baseDir));
+  const rulesDir = resolveRulesDir(baseDir);
+  const rules = loadCompiledRules(rulesDir);
+  const rateRules = loadCompiledRateRules(rulesDir);
 
   let config;
   try {
@@ -114,11 +117,31 @@ function main(): void {
 
   const action = normalize(payload);
   const matches = evaluate(action, rules);
-  const result = decide(action, matches, config);
+
+  const maxWindowSeconds = rateRules.length
+    ? Math.max(...rateRules.map((r) => r.windowSeconds))
+    : 0;
+  const history = rateRules.length ? readRecentRateEvents(baseDir, maxWindowSeconds) : [];
+  const rateMatches = evaluateRateRules(action, matches, rateRules, history);
+  const allMatches = [...matches, ...rateMatches];
+
+  const result = decide(action, allMatches, config);
+
+  if (rateRules.length) {
+    recordRateEvent(
+      baseDir,
+      {
+        timestamp: new Date().toISOString(),
+        decision: result.decision,
+        matchedRuleIds: matches.filter((m) => m.matched).map((m) => m.ruleId),
+      },
+      maxWindowSeconds,
+    );
+  }
 
   appendAuditLogEntry(baseDir, action, result);
 
-  respond(result.decision, reasonFrom(matches, result.score));
+  respond(result.decision, reasonFrom(allMatches, result.score));
 }
 
 main();

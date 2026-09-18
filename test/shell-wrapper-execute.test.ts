@@ -187,4 +187,28 @@ describe('runShellCommand (shell-wrapper adapter)', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(exitCode).toBe(0);
   });
+
+  it('a rate_window rule escalates a normally-allow command once enough prior denies happened within its window (real cross-invocation state, via .adr/rate-state/)', async () => {
+    writeFileSync(
+      join(rulesDir, 'test-burst-of-denies.yaml'),
+      'id: test-burst-of-denies\nappliesTo: any\nmatch:\n  kind: rate_window\n  windowSeconds: 60\n  threshold: 2\n  of:\n    decision: deny\nseverity: high\nmessage: test burst of denies\n',
+    );
+
+    // Two separate invocations (separate calls to runShellCommand, each writing
+    // its own rate-state record, simulating separate process runs) that each deny.
+    await runShellCommand(`rm -rf ${DENY_TRIGGER}`, options({ execute: vi.fn(), writeError: vi.fn() }));
+    await runShellCommand(`rm -rf ${DENY_TRIGGER}`, options({ execute: vi.fn(), writeError: vi.fn() }));
+
+    // A third, otherwise-innocuous command (no stateless rule matches at all)
+    // should now be escalated by test-burst-of-denies alone, from allow to ask.
+    await runShellCommand('echo hello', options({ execute: vi.fn(), writeError: vi.fn() }));
+
+    const lines = readFileSync(auditLogPath(baseDir), 'utf-8').trim().split('\n');
+    const entries = lines.map((l) => JSON.parse(l));
+    const thirdEntry = entries[entries.length - 1];
+
+    expect(thirdEntry.action.command).toBe('echo hello');
+    expect(thirdEntry.decision).toBe('ask');
+    expect(thirdEntry.matches.some((m: { ruleId: string; matched: boolean }) => m.ruleId === 'test-burst-of-denies' && m.matched)).toBe(true);
+  });
 });

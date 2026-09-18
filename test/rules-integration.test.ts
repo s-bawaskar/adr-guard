@@ -1,11 +1,12 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { decide, evaluate } from '../src/core/policy-engine.js';
-import { loadCompiledRules } from '../src/core/rule-loader.js';
+import { loadCompiledRateRules, loadCompiledRules } from '../src/core/rule-loader.js';
 import type { NormalizedAction, PolicyResult } from '../src/core/types.js';
 
 const RULES_DIR = fileURLToPath(new URL('../rules', import.meta.url));
 const rules = loadCompiledRules(RULES_DIR);
+const rateRules = loadCompiledRateRules(RULES_DIR);
 
 function action(overrides: Partial<NormalizedAction>): NormalizedAction {
   return { type: 'shell', raw: {}, source: 'test', ...overrides };
@@ -30,6 +31,20 @@ describe('shipped rules/*.yaml, loaded and evaluated end-to-end', () => {
       'system-path-write',
       'unallowlisted-network-host',
     ]);
+  });
+
+  it('loads the 2 shipped rate_window rules, cross-rule ofRuleId resolving against the stateless set', () => {
+    expect(rateRules.map((r) => r.id).sort()).toEqual(['burst-of-denies', 'burst-sensitive-writes']);
+
+    const burstWrites = rateRules.find((r) => r.id === 'burst-sensitive-writes');
+    expect(burstWrites?.of).toEqual({ ruleId: 'credential-file-write' });
+    // Confirms credential-file-write really is in the stateless set this
+    // resolved against — i.e. loadCompiledRateRules would have thrown
+    // otherwise (see rule-loader.test.ts for the negative case).
+    expect(rules.some((r) => r.id === 'credential-file-write')).toBe(true);
+
+    const burstDenies = rateRules.find((r) => r.id === 'burst-of-denies');
+    expect(burstDenies?.of).toEqual({ decision: 'deny' });
   });
 
   it('denies rm -rf on a broad path', () => {
