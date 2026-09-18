@@ -2,9 +2,9 @@
 
 Notable changes to `adr-guard`, especially anything that changes an
 existing decision (`allow`/`ask`/`deny`) for actions that previously
-triggered differently. Versions prior to 0.1.0 predate this file.
+triggered differently. Versions prior to 0.2.0 predate this file.
 
-## 0.1.0
+## 0.2.0
 
 ### Changed — behavior change, not just new coverage
 
@@ -21,6 +21,26 @@ triggered differently. Versions prior to 0.1.0 predate this file.
 
 ### Added
 
+- **Configurable ask/deny thresholds.** Add an `adr.config.yaml` to a
+  project root to override the default `askThreshold`/`denyThreshold`
+  (3/10) used to turn a cumulative risk score into a decision. No config
+  file present is fully backward compatible — behavior is unchanged
+  from every prior version. Invalid config (non-numeric, or
+  `denyThreshold <= askThreshold`) fails loudly with a clear error
+  rather than silently falling back to defaults. See the "Configuring
+  thresholds" section in README.md.
+- **Frequency/rate-based rules** (`rate_window` match kind) — a rule can
+  now trigger on a *pattern across separate tool calls* within a rolling
+  time window (e.g. "3 denied actions in 60 seconds"), not just on one
+  action in isolation. History is kept in `.adr/rate-state/` and
+  maintained automatically by both adapters, with no per-project setup
+  required. Ships with two default rules: `burst-of-denies` (high — 3+
+  denied actions in 60s) and `burst-sensitive-writes` (critical — 5+
+  `credential-file-write` matches in 2 minutes). These apply
+  automatically to any project relying on the bundled default rule set;
+  a project with its own local `rules/` copy (from `adr init`) is
+  unaffected until it opts in by copying the new rule files in. See the
+  `rate_window` section in rules/README.md.
 - `ssh-key-exfiltration` (high) — reads/writes of SSH private keys or
   `authorized_keys`/`known_hosts`, and `cat`/`scp`/`curl`/`rsync`/`nc`/
   `wget` commands targeting them.
