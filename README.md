@@ -158,6 +158,8 @@ and once via `adr-guard exec`) in a disposable temp directory — see
 | `unallowlisted-network-host`  | medium   | outbound request to a host not on the default allowlist                          |
 | `chmod-world-writable`        | medium   | `chmod 777`/`666`/etc. or symbolic grants like `o+w`, `a+rwx`                     |
 | `install-from-arbitrary-url`  | medium   | `pip`/`npm`/`go install` from a URL/host outside the trusted registry/forge list  |
+| `burst-of-denies`             | high     | 3 or more denied actions within 60 seconds (frequency-based, see below)          |
+| `burst-sensitive-writes`      | critical | `credential-file-write` matching 5 or more times within 2 minutes (frequency-based, see below) |
 
 Decisions aren't just "worst rule wins" — risk scores from multiple
 triggered rules add up, so e.g. a write that's _both_ a credential path
@@ -166,12 +168,21 @@ critical. See [docs/false-positive-report.md](docs/false-positive-report.md)
 for the corpus this was tuned against (0% false positives / false
 negatives on 35 hand-built cases as of the last tuning pass).
 
+The last two rules above are **frequency-based**: instead of judging one
+action in isolation, they look at a short rolling history of recent
+decisions across separate tool calls (kept in `.adr/rate-state/`) and
+escalate once a suspicious *pattern* — a burst of denials, repeated hits
+on the same rule — shows up, even if no single action in the burst was
+severe enough to trigger on its own. This works out of the box with no
+per-project setup: both adapters maintain that history automatically,
+the same way they already write `.adr/audit.log`.
+
 ## Adding or changing a rule
 
 Edit (or add) a `.yaml` file in your project's `rules/` directory — see
-[rules/README.md](rules/README.md) for the schema and the four match
-kinds (`regex`, `path_prefix`, `domain_allowlist`, `domain_denylist`).
-No code changes, no rebuild.
+[rules/README.md](rules/README.md) for the schema and the five match
+kinds (`regex`, `path_prefix`, `domain_allowlist`, `domain_denylist`,
+`rate_window`). No code changes, no rebuild.
 
 ## Configuring thresholds
 
