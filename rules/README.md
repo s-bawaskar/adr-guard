@@ -37,15 +37,17 @@ default to `url` — `regex` has no default and needs an explicit field.
 
 ### `severity`
 
-Drives the overall decision when multiple rules fire on the same
-action — the single highest-severity triggered rule wins:
+Each triggered rule contributes points by severity (`low: 1`,
+`medium: 3`, `high: 6`, `critical: 10`), and the decision comes from the
+**cumulative score** across every rule that matched — not just the
+single worst one. A lone `low` match allows; two `high` matches together
+(12 points) escalate to `deny` even though neither alone would. See
+`src/core/scoring.ts`.
 
-| severity   | decision |
-| ---------- | -------- |
-| `low`      | allow    |
-| `medium`   | ask      |
-| `high`     | ask      |
-| `critical` | deny     |
+The score-to-decision cutoffs (`askThreshold`, `denyThreshold`) default
+to 3 and 10, and are project-configurable via `adr.config.yaml` — see
+the "Configuring thresholds" section in the top-level
+[README.md](../README.md#configuring-thresholds).
 
 ## Match kinds
 

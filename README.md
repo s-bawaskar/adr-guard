@@ -173,6 +173,29 @@ Edit (or add) a `.yaml` file in your project's `rules/` directory — see
 kinds (`regex`, `path_prefix`, `domain_allowlist`, `domain_denylist`).
 No code changes, no rebuild.
 
+## Configuring thresholds
+
+Decisions are driven by two thresholds: below `askThreshold` is `allow`,
+below `denyThreshold` is `ask`, at or above `denyThreshold` is `deny`.
+By default these are `askThreshold: 3` / `denyThreshold: 10`.
+
+To change them for a project, add an `adr.config.yaml` file to the
+project root (next to `rules/`):
+
+```yaml
+askThreshold: 5
+denyThreshold: 15
+```
+
+- Both adapters (the Claude Code hook and `adr-guard exec`) read this
+  file the same way, from the same project root used to resolve `rules/`.
+- No `adr.config.yaml`? ADR uses the hardcoded defaults above — existing
+  projects with no config file are unaffected.
+- `denyThreshold` must be greater than `askThreshold`, and both must be
+  numbers — an invalid config fails loudly (the hook responds `deny`
+  with the validation error; `adr-guard exec` exits non-zero with the
+  same message) rather than silently falling back to defaults.
+
 ## Development
 
 ```
