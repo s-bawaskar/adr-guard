@@ -16,6 +16,9 @@ import {
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runShellCommand } from '../adapters/shell-wrapper/execute.js';
+import { auditLogPath } from '../core/audit-log.js';
+import type { Decision } from '../core/types.js';
+import { runLogCommand } from './log-command.js';
 
 // dist/cli/index.js -> package root
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -151,6 +154,40 @@ export function resolveTargetDir(cwd: string, dirArg: string | undefined): strin
   return dirArg ? resolve(cwd, dirArg) : cwd;
 }
 
+const LOG_USAGE = 'Usage: adr-guard log [dir] [--tail|-f] [--filter allow|ask|deny]';
+
+export function parseLogArgs(args: string[]): {
+  dir?: string;
+  tail: boolean;
+  filter?: Decision;
+} {
+  let tail = false;
+  let filter: Decision | undefined;
+  let dir: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg === '--tail' || arg === '-f') {
+      tail = true;
+    } else if (arg === '--filter') {
+      const value = args[++i];
+      if (value !== 'allow' && value !== 'ask' && value !== 'deny') {
+        throw new Error(`${LOG_USAGE} (got --filter ${value ?? '(missing)'})`);
+      }
+      filter = value;
+    } else if (!arg.startsWith('-') && dir === undefined) {
+      dir = arg;
+    } else {
+      throw new Error(`${LOG_USAGE} (unrecognized argument: ${arg})`);
+    }
+  }
+
+  return { dir, tail, filter };
+}
+
 async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
 
@@ -171,9 +208,26 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === 'log') {
+    try {
+      const options = parseLogArgs(rest);
+      const targetDir = resolveTargetDir(process.cwd(), options.dir);
+      await runLogCommand({
+        logPath: auditLogPath(targetDir),
+        tail: options.tail,
+        filter: options.filter,
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   console.error(
     `Unknown command: ${command ?? '(none)'}\n\nUsage: adr init [dir]\n` +
-      '       adr-guard exec [--non-interactive|--yes-to-ask] -- <command...>',
+      '       adr-guard exec [--non-interactive|--yes-to-ask] -- <command...>\n' +
+      '       adr-guard log [dir] [--tail|-f] [--filter allow|ask|deny]',
   );
   process.exitCode = 1;
 }
